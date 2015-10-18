@@ -6,7 +6,7 @@ import time
 import pandas as pd
 from sklearn import cross_validation
 import xgboost as xgb
-
+from sklearn.ensemble import GradientBoostingClassifier
 #%% Loading in the data
 
 train_file = './train.csv'
@@ -108,7 +108,7 @@ build_features(features, train)
 #Create test features
 build_features([], test)
 
-#%% Training the XGBoost Model
+#%% Training the XGBoost Model (Using XGBoost library)
 
 params = {"objective": "reg:linear",
           "eta": 0.3,
@@ -140,7 +140,17 @@ test_probs = gbm.predict(xgb.DMatrix(test[features]))
 indices = test_probs < 0
 test_probs[indices] = 0
 submission = pd.DataFrame({'Id': test['Id'], 'Sales': np.exp(test_probs) - 1})
-submission.to_csv('ni_xgboost_submission_10152015.csv', index=False)              
+submission.to_csv('ni_xgboost_submission_10152015.csv', index=False)
+
+
+
+#%% Training the XGBoost Model (Using sklearn)
+
+X_train = train[features]
+y_train = train['Sales']
+
+xgb_model = GradientBoostingClassifier(n_estimators=200, max_depth=3)
+xgb_model.fit(X_train, y_train)
 
 
 
