@@ -158,9 +158,7 @@ y_train = train['Sales']
 
 xgb_model = GradientBoostingClassifier(n_estimators=200, max_depth=3)
 xgb_model.fit(X_train, y_train)
-=======
-submission.to_csv('ni_xgboost_submission_10162015.csv', index=False)              
->>>>>>> 64326d2ebd482c031e4d9c190ab538b6465c09ef
+
 
 
 
