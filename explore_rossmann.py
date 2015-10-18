@@ -6,12 +6,8 @@ import time
 import pandas as pd
 from sklearn import cross_validation
 import xgboost as xgb
-<<<<<<< HEAD
-from sklearn.ensemble import GradientBoostingClassifier
-=======
+from sklearn.ensemble import GradientBoostingRegressor
 import matplotlib
-
->>>>>>> 64326d2ebd482c031e4d9c190ab538b6465c09ef
 #%% Loading in the data
 
 train_file = './train.csv'
@@ -58,6 +54,12 @@ def rmspe_xg(yhat, y):
     w = ToWeight(y)
     rmspe = np.sqrt(np.mean(w * (y - yhat)**2))
     return "rmspe", rmspe
+    
+def rmspe_cust(yhat, y):
+    yhat = np.exp(yhat) - 1
+    w = ToWeight(y)
+    rmspe = np.sqrt(np.mean(w* (y - yhat)**2))
+    return rmspe
 
 
 #%% For XGBoost, make features all numeric
@@ -146,18 +148,44 @@ test_probs = gbm.predict(xgb.DMatrix(test[features]),
 indices = test_probs < 0
 test_probs[indices] = 0
 submission = pd.DataFrame({'Id': test['Id'], 'Sales': np.exp(test_probs) - 1})
-<<<<<<< HEAD
 submission.to_csv('ni_xgboost_submission_10152015.csv', index=False)
 
 
 
 #%% Training the XGBoost Model (Using sklearn)
 
-X_train = train[features]
-y_train = train['Sales']
+X_train, X_val = cross_validation.train_test_split(train, 
+                                                   test_size=0.01)
 
-xgb_model = GradientBoostingClassifier(n_estimators=200, max_depth=3)
-xgb_model.fit(X_train, y_train)
+xgb_params = {'loss':'ls',
+              'n_estimators': 200,
+              'max_depth': 3,
+              'lr': 0.1,
+              'max_features': 'auto',
+              'subsample':1.0,
+              'verbose':1}
+
+xgb_train = GradientBoostingRegressor(loss=xgb_params['loss'],
+                                      n_estimators=xgb_params['n_estimators'], 
+                                      max_depth=xgb_params['max_depth'], 
+                                      learning_rate=xgb_params['lr'],
+                                      max_features=xgb_params['max_features'],
+                                      subsample=xgb_params['subsample'],
+                                      verbose=xgb_params['verbose'])
+                                      
+xgb_val = GradientBoostingRegressor(loss=xgb_params['loss'],
+                                    n_estimators=xgb_params['n_estimators'],
+                                    max_depth=xgb_params['max_depth'],
+                                    learning_rate=xgb_params['lr'],
+                                    max_features=xgb_params['max_features'],
+                                    subsample=xgb_params['subsample'],
+                                    verbose=xgb_params['verbose'])
+                                      
+xgb_train.fit(X_train[features], np.log(X_train['Sales'] + 1))
+xgb_val.fit(X_val[features], np.log(X_val['Sales'] + 1))
+
+pred_train = xgb_train.predict(X_train[features])
+
 
 
 
