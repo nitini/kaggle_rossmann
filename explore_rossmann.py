@@ -1,5 +1,4 @@
 #%% Import necessary models
-
 import numpy as np
 import csv
 import time
@@ -8,8 +7,8 @@ from sklearn import cross_validation
 import xgboost as xgb
 from sklearn.ensemble import GradientBoostingRegressor
 import matplotlib
-#%% Loading in the data
 
+#%% Loading in the data
 train_file = './train.csv'
 test_file = './test.csv'
 store_file = './store.csv'
@@ -32,7 +31,6 @@ train = pd.merge(train, store, on='Store')
 test = pd.merge(test, store, on='Store')
 
 #%% Evaluation Metric Functions
-
 def ToWeight(y):
     w = np.zeros(y.shape, dtype=float)
     ind = y != 0
@@ -63,7 +61,6 @@ def rmspe_cust(yhat, y):
 
 
 #%% For XGBoost, make features all numeric
-
 def build_features(features, data):
     
     # Remove NaNs
@@ -106,17 +103,11 @@ def build_features(features, data):
     data['Assortment'] = data['Assortment'].astype(float)
 
 #%% Creating the feature set
-
 features = []
-
-# Create training features
 build_features(features, train)
-
-#Create test features
 build_features([], test)
 
 #%% Training the XGBoost Model (Using XGBoost library)
-
 params = {"objective": "reg:linear",
           "eta": 0.3,
           "max_depth": 8,
@@ -150,16 +141,19 @@ test_probs[indices] = 0
 submission = pd.DataFrame({'Id': test['Id'], 'Sales': np.exp(test_probs) - 1})
 submission.to_csv('ni_xgboost_submission_10152015.csv', index=False)
 
-
-
 #%% Training the XGBoost Model (Using sklearn)
-
 X_train, X_val = cross_validation.train_test_split(train, 
                                                    test_size=0.01)
+y_val = X_val['Sales']                                              
+
+X_test = test[features]
+
+
+
 
 xgb_params = {'loss':'ls',
-              'n_estimators': 200,
-              'max_depth': 3,
+              'n_estimators': 300,
+              'max_depth': 5,
               'lr': 0.1,
               'max_features': 'auto',
               'subsample':1.0,
@@ -172,22 +166,32 @@ xgb_train = GradientBoostingRegressor(loss=xgb_params['loss'],
                                       max_features=xgb_params['max_features'],
                                       subsample=xgb_params['subsample'],
                                       verbose=xgb_params['verbose'])
-                                      
-xgb_val = GradientBoostingRegressor(loss=xgb_params['loss'],
-                                    n_estimators=xgb_params['n_estimators'],
-                                    max_depth=xgb_params['max_depth'],
-                                    learning_rate=xgb_params['lr'],
-                                    max_features=xgb_params['max_features'],
-                                    subsample=xgb_params['subsample'],
-                                    verbose=xgb_params['verbose'])
-                                      
+                                              
+#%% Training the model
 xgb_train.fit(X_train[features], np.log(X_train['Sales'] + 1))
-xgb_val.fit(X_val[features], np.log(X_val['Sales'] + 1))
 
-pred_train = xgb_train.predict(X_train[features])
+#%% Validation Error
+pred_val_probs = xgb_train.predict(X_val[features])
+indices = pred_val_probs < 0 
+pred_val_probs[indices] = 0
+val_rmspe = rmspe(np.exp(pred_val_probs) - 1, y_val.values)
+print('Validation Set Error: ' + val_rmspe)
+
+#%% Grid search for sklearn Gradient Boosting
 
 
 
+
+
+
+#%% Make Predictions
+pred_test_probs = xgb_train.predict(X_test)
+
+indices = pred_test_probs < 0
+pred_test_probs[indices] = 0
+submission = pd.DataFrame({'Id': test['Id'], 
+                           'Sales': np.exp(pred_test_probs) - 1})
+submission.to_csv('ni_sklearn_xgb_10172015_v2.csv', index=False)
 
 
 
