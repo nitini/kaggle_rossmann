@@ -6,7 +6,12 @@ import time
 import pandas as pd
 from sklearn import cross_validation
 import xgboost as xgb
+<<<<<<< HEAD
 from sklearn.ensemble import GradientBoostingClassifier
+=======
+import matplotlib
+
+>>>>>>> 64326d2ebd482c031e4d9c190ab538b6465c09ef
 #%% Loading in the data
 
 train_file = './train.csv'
@@ -136,10 +141,12 @@ train_probs[indices] = 0
 error = rmspe(np.exp(train_probs) - 1, X_test['Sales'].values)
 
 # Make Predictions
-test_probs = gbm.predict(xgb.DMatrix(test[features]))
+test_probs = gbm.predict(xgb.DMatrix(test[features]), 
+                         ntree_limit=gbm.best_iteration)
 indices = test_probs < 0
 test_probs[indices] = 0
 submission = pd.DataFrame({'Id': test['Id'], 'Sales': np.exp(test_probs) - 1})
+<<<<<<< HEAD
 submission.to_csv('ni_xgboost_submission_10152015.csv', index=False)
 
 
@@ -151,6 +158,9 @@ y_train = train['Sales']
 
 xgb_model = GradientBoostingClassifier(n_estimators=200, max_depth=3)
 xgb_model.fit(X_train, y_train)
+=======
+submission.to_csv('ni_xgboost_submission_10162015.csv', index=False)              
+>>>>>>> 64326d2ebd482c031e4d9c190ab538b6465c09ef
 
 
 
