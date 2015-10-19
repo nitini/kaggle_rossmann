@@ -153,7 +153,7 @@ X_test = test[features]
 
 xgb_params = {'loss':'ls',
               'n_estimators': 300,
-              'max_depth': 5,
+              'max_depth': 7,
               'lr': 0.1,
               'max_features': 'auto',
               'subsample':1.0,
@@ -175,9 +175,11 @@ pred_val_probs = xgb_train.predict(X_val[features])
 indices = pred_val_probs < 0 
 pred_val_probs[indices] = 0
 val_rmspe = rmspe(np.exp(pred_val_probs) - 1, y_val.values)
-print('Validation Set Error: ' + val_rmspe)
+print('Validation Set Error: ' + str(val_rmspe))
 
 #%% Grid search for sklearn Gradient Boosting
+
+
 
 
 
@@ -191,7 +193,7 @@ indices = pred_test_probs < 0
 pred_test_probs[indices] = 0
 submission = pd.DataFrame({'Id': test['Id'], 
                            'Sales': np.exp(pred_test_probs) - 1})
-submission.to_csv('ni_sklearn_xgb_10172015_v2.csv', index=False)
+submission.to_csv('ni_sklearn_xgb_10182015_v3.csv', index=False)
 
 
 
