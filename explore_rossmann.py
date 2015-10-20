@@ -7,7 +7,7 @@ from sklearn import cross_validation
 import xgboost as xgb
 from sklearn.ensemble import GradientBoostingRegressor
 import matplotlib
-
+from sklearn.grid_search import GridSearchCV, RandomizedSearchCV
 #%% Loading in the data
 train_file = './train.csv'
 test_file = './test.csv'
@@ -107,7 +107,7 @@ features = []
 build_features(features, train)
 build_features([], test)
 
-#%% Training the XGBoost Model (Using XGBoost library)
+#%% -------- Training the XGBoost Model (Using XGBoost library) -------------
 params = {"objective": "reg:linear",
           "eta": 0.3,
           "max_depth": 8,
@@ -141,7 +141,7 @@ test_probs[indices] = 0
 submission = pd.DataFrame({'Id': test['Id'], 'Sales': np.exp(test_probs) - 1})
 submission.to_csv('ni_xgboost_submission_10152015.csv', index=False)
 
-#%% Training the XGBoost Model (Using sklearn)
+#%% --------------- Training the XGBoost Model (Using sklearn) -------------- 
 X_train, X_val = cross_validation.train_test_split(train, 
                                                    test_size=0.01)
 y_val = X_val['Sales']                                              
@@ -153,7 +153,7 @@ X_test = test[features]
 
 xgb_params = {'loss':'ls',
               'n_estimators': 300,
-              'max_depth': 7,
+              'max_depth': 8,
               'lr': 0.1,
               'max_features': 'auto',
               'subsample':1.0,
