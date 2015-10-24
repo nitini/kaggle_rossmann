@@ -8,6 +8,9 @@ import xgboost as xgb
 from sklearn.ensemble import GradientBoostingRegressor
 import matplotlib
 from sklearn.grid_search import GridSearchCV, RandomizedSearchCV
+from scipy.stats import randint as sp_randint
+from operator import itemgetter
+from scipy.stats import uniform
 #%% Loading in the data
 train_file = './train.csv'
 test_file = './test.csv'
@@ -58,6 +61,16 @@ def rmspe_cust(yhat, y):
     w = ToWeight(y)
     rmspe = np.sqrt(np.mean(w* (y - yhat)**2))
     return rmspe
+    
+def report(grid_scores, n_top=3):
+    top_scores = sorted(grid_scores, key=itemgetter(1), reverse=True)[:n_top]
+    for i, score in enumerate(top_scores):
+        print("Model with rank: {0}".format(i + 1))
+        print("Mean validation score: {0:.3f} (std: {1:.3f})".format(
+              score.mean_validation_score,
+              np.std(score.cv_validation_scores)))
+        print("Parameters: {0}".format(score.parameters))
+        print("")
 
 
 #%% For XGBoost, make features all numeric
@@ -177,14 +190,33 @@ pred_val_probs[indices] = 0
 val_rmspe = rmspe(np.exp(pred_val_probs) - 1, y_val.values)
 print('Validation Set Error: ' + str(val_rmspe))
 
-#%% Grid search for sklearn Gradient Boosting
+#%% Randomized Grid search for sklearn Gradient Boosting
 
+n_iter_search = 3
+#Distributions have to be scipy rv's
+param_dist = {'n_estimators': sp_randint(150,300), 
+              'max_depth': sp_randint(5,10), 
+              'learning_rate': uniform(0.001, 0.1),
+              'max_features': sp_randint(5,10),
+              'subsample': uniform(0.7,1.0)}
+xgb_train = GradientBoostingRegressor()
+random_search = RandomizedSearchCV(xgb_train, param_distributions=param_dist,
+                                   n_iter=n_iter_search)
+random_search.fit(X_train[features], np.log(X_train['Sales'] + 1))
+report(random_search.grid_scores_)
 
+#%% Grid Search for sklearn Gradient Boosting
 
-
-
-
-
+param_grid = {'max_depth':[4,6],
+              'min_samples_leaf':[6,9],
+              'max_features':[7,9],
+              'subsample':[0.8,0.9],
+              'learning_rate':[0.01,0.1]}
+xgb_train = GradientBoostingRegressor(n_estimators=50, verbose=1)
+y = np.log(X_train['Sales'] + 1)
+grid_search = GridSearchCV(xgb_train, 
+                           param_grid, verbose=1).fit(X_train[features], y)
+grid_search.best_params_
 
 #%% Make Predictions
 pred_test_probs = xgb_train.predict(X_test)
@@ -194,6 +226,8 @@ pred_test_probs[indices] = 0
 submission = pd.DataFrame({'Id': test['Id'], 
                            'Sales': np.exp(pred_test_probs) - 1})
 submission.to_csv('ni_sklearn_xgb_10182015_v3.csv', index=False)
+
+#%%
 
 
 
