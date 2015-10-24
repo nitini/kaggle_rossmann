@@ -194,12 +194,11 @@ print('Validation Set Error: ' + str(val_rmspe))
 
 n_iter_search = 3
 #Distributions have to be scipy rv's
-param_dist = {'n_estimators': sp_randint(150,300), 
-              'max_depth': sp_randint(5,10), 
+param_dist = {'max_depth': sp_randint(5,10), 
               'learning_rate': uniform(0.001, 0.1),
               'max_features': sp_randint(5,10),
               'subsample': uniform(0.7,1.0)}
-xgb_train = GradientBoostingRegressor()
+xgb_train = GradientBoostingRegressor(n_estimators=100, verbose=1)
 random_search = RandomizedSearchCV(xgb_train, param_distributions=param_dist,
                                    n_iter=n_iter_search)
 random_search.fit(X_train[features], np.log(X_train['Sales'] + 1))
