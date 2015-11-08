@@ -226,9 +226,12 @@ submission = pd.DataFrame({'Id': test['Id'],
                            'Sales': np.exp(pred_test_probs) - 1})
 submission.to_csv('ni_sklearn_xgb_10182015_v3.csv', index=False)
 
-#%%
+#%% New Feature #1: 
 
-
-
-
+store_means = train.groupby(['Store'])['Sales'].mean()
+store_type_means = train.groupby(['StoreType'])['Sales'].mean()
+store_by_dow_means = train.groupby(['Store','DayOfWeek'])['Sales'].mean()
+store_by_day_means = train.groupby(['Store','day'])['Sales'].mean()
+store_by_month_means = train.groupby(['Store','month'])['Sales'].mean()
+store_by_year_means = train.groupby(['Store','year'])['Sales'].mean()
     
