@@ -11,6 +11,7 @@ from sklearn.grid_search import GridSearchCV, RandomizedSearchCV
 from scipy.stats import randint as sp_randint
 from operator import itemgetter
 from scipy.stats import uniform
+from sklearn.cross_validation import KFold
 #%% Loading in the data
 train_file = './train.csv'
 test_file = './test.csv'
@@ -90,17 +91,17 @@ def build_features(features, data):
     features.append('SchoolHoliday')
     data['SchoolHoliday'] = data['SchoolHoliday'].astype(float)
     
-    features.append('DayOfWeek')
+    features.append('dayOfWeek')
     features.append('month')
     features.append('day')
     features.append('year')
+    features.append('weekOfYear')
     
-    data['year'] = data.Date.apply(lambda x: x.split('-')[0])
-    data['year'] = data['year'].astype(float)
-    data['month'] = data.Date.apply(lambda x: x.split('-')[1])
-    data['month'] = data['month'].astype(float)
-    data['day'] = data.Date.apply(lambda x: x.split('-')[2])
-    data['day'] = data['day'].astype(float)
+    data['Date'] = pd.to_datetime(data['Date'])
+    data['year'] = data.Date.dt.year
+    data['month'] = data.Date.dt.month
+    data['dayOfWeek'] = data.Date.dt.dayofweek
+    data['weekOfYear'] = data.Date.dt.weekofyear
     
     features.append('StoreType')
     data.loc[data['StoreType'] == 'a', 'StoreType'] = '1'
@@ -114,13 +115,35 @@ def build_features(features, data):
     data.loc[data['Assortment'] == 'b', 'Assortment'] = '2'
     data.loc[data['Assortment'] == 'c', 'Assortment'] = '3'
     data['Assortment'] = data['Assortment'].astype(float)
+    
+     #Code to make a promo binary variable 
+    #(Is there a promo running on day X). Needs to be fixed still
+    
+    # Promo open time in months
+    features.append('PromoOpen')
+    data['PromoOpen'] = 12 * (data.year - data.Promo2SinceYear) + \
+        (data.weekOfYear - data.Promo2SinceWeek) / 4.0
+    data['PromoOpen'] = data.PromoOpen.apply(lambda x: x if x > 0 else 0)
 
-#%% Creating the feature set
+    # Indicate that sales on that day are in promo interval
+    features.append('IsPromoMonth')
+    month2str = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', \
+             7:'Jul', 8:'Aug', 9:'Sept', 10:'Okt', 11:'Nov', 12:'Dec'}
+    data['monthStr'] = data.month.map(month2str)
+    data.loc[data.PromoInterval == 0, 'PromoInterval'] = ''
+    data['IsPromoMonth'] = 0
+    for interval in data.PromoInterval.unique():
+        if interval != '':
+            for month in interval.split(','):
+                data.loc[(data.monthStr == month) &
+                (data.PromoInterval == interval), 'IsPromoMonth'] = 1
+
 features = []
 build_features(features, train)
 build_features([], test)
 
 #%% -------- Training the XGBoost Model (Using XGBoost library) -------------
+
 params = {"objective": "reg:linear",
           "eta": 0.3,
           "max_depth": 8,
@@ -155,14 +178,12 @@ submission = pd.DataFrame({'Id': test['Id'], 'Sales': np.exp(test_probs) - 1})
 submission.to_csv('ni_xgboost_submission_10152015.csv', index=False)
 
 #%% --------------- Training the XGBoost Model (Using sklearn) -------------- 
+
 X_train, X_val = cross_validation.train_test_split(train, 
                                                    test_size=0.01)
 y_val = X_val['Sales']                                              
 
 X_test = test[features]
-
-
-
 
 xgb_params = {'loss':'ls',
               'n_estimators': 300,
@@ -179,7 +200,7 @@ xgb_train = GradientBoostingRegressor(loss=xgb_params['loss'],
                                       max_features=xgb_params['max_features'],
                                       subsample=xgb_params['subsample'],
                                       verbose=xgb_params['verbose'])
-                                              
+                                      
 #%% Training the model
 xgb_train.fit(X_train[features], np.log(X_train['Sales'] + 1))
 
@@ -218,6 +239,7 @@ grid_search = GridSearchCV(xgb_train,
 grid_search.best_params_
 
 #%% Make Predictions
+
 pred_test_probs = xgb_train.predict(X_test)
 
 indices = pred_test_probs < 0
@@ -226,12 +248,4 @@ submission = pd.DataFrame({'Id': test['Id'],
                            'Sales': np.exp(pred_test_probs) - 1})
 submission.to_csv('ni_sklearn_xgb_10182015_v3.csv', index=False)
 
-#%% New Feature #1: 
-
-store_means = train.groupby(['Store'])['Sales'].mean()
-store_type_means = train.groupby(['StoreType'])['Sales'].mean()
-store_by_dow_means = train.groupby(['Store','DayOfWeek'])['Sales'].mean()
-store_by_day_means = train.groupby(['Store','day'])['Sales'].mean()
-store_by_month_means = train.groupby(['Store','month'])['Sales'].mean()
-store_by_year_means = train.groupby(['Store','year'])['Sales'].mean()
-    
+#%%

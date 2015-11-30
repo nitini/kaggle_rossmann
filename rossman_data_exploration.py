@@ -17,6 +17,9 @@ from scipy.stats import randint as sp_randint
 from operator import itemgetter
 from scipy.stats import uniform
 from ggplot import *
+from sklearn.cross_validation import KFold
+from matplotlib import pyplot as plt
+
 #%% Loading in the data and cleaning it up
 train_file = './train.csv'
 test_file = './test.csv'
@@ -26,8 +29,6 @@ output_file = './predictions.csv'
 train = pd.read_csv(train_file)
 test = pd.read_csv(test_file)
 store = pd.read_csv(store_file)
-
-
 
 # Assume store open if not known
 test.fillna(1, inplace=True)
@@ -120,13 +121,7 @@ store_by_dow_means.index.levels[1].name = 'dow'
 store_by_dow_means = pd.DataFrame(pd.Series(store_by_dow_means, 
                                 name='store_dow_sales_means'))
 train = train.join(store_by_dow_means, on=['Store','DayOfWeek'])
-
-#%%
-store_by_day_means = train.groupby(['Store','day'])['Sales'].mean()
-store_by_month_means = train.groupby(['Store','month'])['Sales'].mean()
-store_by_year_means = train.groupby(['Store','year'])['Sales'].mean()
-store_type_means = train.groupby(['StoreType'])['Sales'].mean()
-#%% Joining means to the training data.
+features.append('store_dow_sales_means')
 
 #%% Implementing ggplot to look at the data
 
@@ -134,7 +129,93 @@ train_sales = pd.DataFrame(train[train['Store'] == 1]['Sales'])
 
 ggplot(aes(x='Sales'), data=train_sales) + \
     geom_histogram()
+    
+store_type_means = pd.DataFrame(train.groupby(['StoreType'])['Sales'].mean())
+
+store_type_means['StoreType'] = pd.Series(['A','B','C','D'], 
+                                            index=store_type_means.index)
+store_type_means.head()
+
+ggplot(aes(x='StoreType', y='Sales'), data=store_type_means) + \
+     geom_bar(stat="identity")
+     
+ggplot(aes(x='Sales'), data=train) + \
+    geom_histogram() + facet_wrap('DayOfWeek')
+    
+ggplot(aes(x='Sales'), data=train) + \
+    geom_histogram() + facet_wrap('IsPromoMonth')
+    
+promo_means = train.groupby(['year', 'IsPromoMonth'])['Sales'].mean()
+promo_means = pd.DataFrame(promo_means)
+
+day_means = train.groupby(['day'])['Sales'].mean()
+month_means = train.groupby(['month'])['Sales'].mean()
+plt.plot(day_means)
+plt.plot(month_means)
+
+store_num = 979
+specific_store_sales = train[(train.Store==store_num)][['Date',
+                                                        'month',
+                                                        'Sales', 
+                                                        'year',
+                                                        'DayOfWeek']]
+ggplot(aes(x='Date', y='Sales', color='DayOfWeek'), 
+       data=specific_store_sales) +\
+    geom_line()
+
+#%% RMSPE Function
+
+def ToWeight(y):
+    w = np.zeros(y.shape, dtype=float)
+    ind = y != 0
+    w[ind] = 1./(y[ind]**2)
+    return w
 
 
+def rmspe(yhat, y):
+    w = ToWeight(y)
+    rmspe = np.sqrt(np.mean( w * (y - yhat)**2 ))
+    return rmspe
+
+#%% Testing out K-Fold Cross Validation, and Stratified Sampling Cross-Val
+
+xgb_params = {'loss':'ls',
+              'n_estimators': 10,
+              'max_depth': 8,
+              'lr': 0.1,
+              'max_features': 'auto',
+              'subsample':1.0,
+              'verbose':1}
+              
+xgb_train = GradientBoostingRegressor(loss=xgb_params['loss'],
+                                      n_estimators=
+                                      xgb_params['n_estimators'], 
+                                      max_depth=
+                                      xgb_params['max_depth'], 
+                                      learning_rate=xgb_params['lr'],
+                                      max_features=
+                                      xgb_params['max_features'],
+                                      subsample=xgb_params['subsample'],
+                                      verbose=xgb_params['verbose'])
+
+cross_val_scores = []
+kf = KFold(train.shape[0], n_folds=3)
+fold_counter = 0
+
+for train_indices, test_indices in kf:
+    fold_counter += 1
+    print('Processing fold: ' + str(fold_counter))
+    fold_X_train = train[features].iloc[train_indices]
+    fold_y_train = train['Sales'].iloc[train_indices]
+    fold_X_test = train[features].iloc[test_indices]
+    fold_y_test = train['Sales'].iloc[test_indices]
+    xgb_train.fit(fold_X_train, np.log(fold_y_train + 1))
+    pred_val_probs = xgb_train.predict(fold_X_test)
+    indices = pred_val_probs < 0 
+    pred_val_probs[indices] = 0
+    val_rmspe = rmspe(np.exp(pred_val_probs) - 1, fold_y_test.values)
+    cross_val_scores.append(val_rmspe)
+
+#%%
 
 
