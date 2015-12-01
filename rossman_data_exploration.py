@@ -177,7 +177,7 @@ def rmspe(yhat, y):
     rmspe = np.sqrt(np.mean( w * (y - yhat)**2 ))
     return rmspe
 
-#%% Testing out K-Fold Cross Validation, and Stratified Sampling Cross-Val
+#%% Testing out Vanilla K-Fold Cross Validation on Training Data
 
 xgb_params = {'loss':'ls',
               'n_estimators': 10,
@@ -216,6 +216,31 @@ for train_indices, test_indices in kf:
     val_rmspe = rmspe(np.exp(pred_val_probs) - 1, fold_y_test.values)
     cross_val_scores.append(val_rmspe)
 
-#%%
+#%% Function that takes a single time series and creates appropriate CV folds
+def performTimeSeriesCV(X_train, y_train, number_folds):
+    print 'Size train set: ', X_train.shape
 
+    k = int(np.floor(float(X_train.shape[0]) / number_folds))
+    print 'Size of each fold: ', k
 
+    for i in range(2, number_folds + 1):
+        print ''
+        
+        split = float(i-1)/i
+        
+        X = X_train[:(k*i)]
+        y = y_train[:(k*i)]
+        
+        index = int(np.floor(X.shape[0] * split))
+      
+        X_trainFolds = X[:index]        
+        y_trainFolds = y[:index]
+        
+        print 'Size of train: ', X_trainFolds.shape
+
+        X_testFold = X[(index + 1):]
+        y_testFold = y[(index + 1):]
+        
+        print 'Size of test: ', X_testFold.shape
+
+#%% Building out Time Series CV for all training data using above function
